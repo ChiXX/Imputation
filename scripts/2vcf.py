@@ -1,69 +1,65 @@
 #!/usr/bin/env python
 # coding: utf-8
-import os
+import argparse
 import pandas as pd
 import numpy as np
-import gc
+
+parser = argparse.ArgumentParser(description="run like: python 2vcf.py -i ../data/genotype.txt -o ../data/genotype.vcf -n 2"+'\n'+
+                               "required: python3, pandas, numpy")
+parser.add_argument('-i', type=str, help='input file path',required=True)
+parser.add_argument('-o', type=str, help='output file path',required=True)
+parser.add_argument('-n', type=int, help='number of samples',required=True)
+args = parser.parse_args()
+
+gt_path = args.i
+out_path = args.o
+sample = args.n
+header = 0
+print(gt_path, out_path, sample)
+
+with open(gt_path) as fi, open(out_path, 'w') as fo:
+    for l in fi:
+        if l.startswith('##'):
+            fo.write(l)
+            header += 1
+        else:
+            break
 
 
-ref_path = '/data/1KG/hs37d5.fa'
-tg_path = '../data/target'
-refs = '../data/refs'
+target = pd.read_csv(gt_path, sep='\t', header=header)
+samples = list(target.columns[-sample:])
 
-# split the reference data by chromosome
-def split_ref(ref_path, refs):
-    with open(ref_path) as f:
-        writed = False
-        for l in f:
-            if l.startswith('>'):
-                if writed:
-                    o.close()
-                o = open(refs+'/'+l.rstrip()[1:].split(' ')[0]+'.fa', 'w')
-                o.write(l)
-                writed = False
-            else:
-                writed = True
-                o.write(l.rstrip())
-        o.close()
-    del writed, f, l, o
-    gc.collect()
+def alt(ref, nns):
+    if '-'in nns:
+        nns.remove('-')
+    if ref in nns:
+        if len(nns) == 1: 
+            return '.'
+        else:
+            nns.remove(ref)
+            return ','.join(nns)
+    else:
+        if len(nns) == 0: 
+            return np.nan
+        else:
+            return ','.join(nns)
+    
+def incode(ref, alt, sp):
+    if alt is np.nan: return np.nan
+    r, l = '', ''
+    for i, v in enumerate([ref]+alt.split(',')):
+        if sp[0] == v: r = str(i)
+        if sp[1] == v: l = str(i)
+    if len(r+l) != 2: return np.nan
+    return r+'/'+l
 
-if len(os.listdir(refs)) == 0:
-    split_ref(ref_path, refs)
+target['FORMAT'] = 'GT'
+target['QUAL'] = '.'
+target['FILTER'] = '.'
+target['ALT'] = target.apply(lambda x: alt(x['REF'], list(np.unique(list(''.join(x[samples]))))),axis=1)
+for sp in samples:
+    target[sp] = target.apply(lambda x: incode(x['REF'], x['ALT'], x[sp]), axis=1)
+target = target[['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL',  'FILTER', 'INFO', 'FORMAT']+samples]
 
-target = pd.read_csv(tg_path+'/'+'028-1111-2264.txt', sep='\t', header=12).sort_values(by=['#CHROM'])
-chrom = list(target['#CHROM'].unique())
-
-
-target2 = []
-for i in chrom:
-    tar = target[target['#CHROM'] == i]
-    dic ={}
-    with open(refs+'/'+i+'.fa') as f:
-        for j, k in enumerate(f.readlines()[1]):
-            dic[j+1] = k
-    tar['REF'] = tar.apply(lambda x: dic[int(x['POS'])], axis=1)
-    target2.append(tar)
-    del dic, tar
-    gc.collect()
-
-
-target2 = pd.concat(target2, axis=0)
-
-
-target2['FORMAT'] = 'GT'
-target2['QUAL'] = '.'
-target2['FILTER'] = '.'
-target2['ALT'] = target3.apply(lambda x: '.' if x['REF']==x['028-1111-2264'][0]==x['028-1111-2264'][1] else
-                                         x['028-1111-2264'][0] if x['REF']!=x['028-1111-2264'][0] and x['REF']==x['028-1111-2264'][1] else
-                                         x['028-1111-2264'][1] if x['REF']==x['028-1111-2264'][0] and x['REF']!=x['028-1111-2264'][1] else
-                                         x['028-1111-2264'][0]+','+x['028-1111-2264'][1] if x['028-1111-2264'][0]!=x['028-1111-2264'][1] else 
-                                         x['028-1111-2264'][0] if x['028-1111-2264'][0]==x['028-1111-2264'][1] else np.nan,axis=1)
-target2['Sample1'] = target3.apply(lambda x: '0/0' if x['ALT']=='.' else
-                                           '1/1' if x['ALT'] == x['028-1111-2264'][0] == x['028-1111-2264'][1] else
-                                           '0/1' if x['ALT'] == x['028-1111-2264'][1] else
-                                           '1/0' if x['ALT'] == x['028-1111-2264'][0] else './.',axis=1)
-target2.drop(['028-1111-2264'], axis=1, inplace=True)
-target2 = target3[['#CHROM', 'POS', 'ID', 'REF',  'ALT', 'QUAL',  'FILTER', 'INFO', 'FORMAT', 'Sample1']].sort_values(by=['#CHROM', 'POS'])
-
-target2.to_csv(tg_path+'/'+'028-1111-2264.vcf', sep='\t', index=False)
+target.sort_values(by=['#CHROM', 'POS']).to_csv(out_path, sep='\t', mode='a', index=False)
+print('output to ', out_path)
