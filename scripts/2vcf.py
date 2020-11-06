@@ -15,7 +15,6 @@ gt_path = args.i
 out_path = args.o
 sample = args.n
 header = 0
-print(gt_path, out_path, sample)
 
 with open(gt_path) as fi, open(out_path, 'w') as fo:
     for l in fi:
@@ -51,7 +50,7 @@ def incode(ref, alt, sp):
         if sp[0] == v: r = str(i)
         if sp[1] == v: l = str(i)
     if len(r+l) != 2: return np.nan
-    return r+'/'+l
+    return r+'|'+l
 
 target['FORMAT'] = 'GT'
 target['QUAL'] = '.'
