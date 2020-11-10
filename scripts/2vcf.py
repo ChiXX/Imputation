@@ -4,8 +4,7 @@ import argparse
 import pandas as pd
 import numpy as np
 
-parser = argparse.ArgumentParser(description="run like: python 2vcf.py -i ../data/genotype.txt -o ../data/genotype.vcf -n 2"+'\n'+
-                               "required: python3, pandas, numpy")
+parser = argparse.ArgumentParser(description="run like: python 2vcf.py -i ../data/genotype.txt -o ../data/genotype.vcf -n 2\nrequired: python3, pandas, numpy")
 parser.add_argument('-i', type=str, help='input file path',required=True)
 parser.add_argument('-r', type=str, help='reference file path',required=True)
 parser.add_argument('-o', type=str, help='output file path',required=True)
