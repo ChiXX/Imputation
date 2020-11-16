@@ -4,7 +4,7 @@ import argparse
 import pandas as pd
 import numpy as np
 
-parser = argparse.ArgumentParser(description="run like: python 2vcf.py -i ../data/genotype.txt -o ../data/genotype.vcf -n 2\nrequired: python3, pandas, numpy")
+parser = argparse.ArgumentParser(description="run like: python ./scripts/2vcf.py -i ./data/genotype.txt -o ./data/genotype.vcf -n 10\nrequired: python3, pandas, numpy")
 parser.add_argument('-i', type=str, help='input file path',required=True)
 parser.add_argument('-r', type=str, help='reference file path',required=True)
 parser.add_argument('-o', type=str, help='output file path',required=True)
@@ -21,11 +21,12 @@ with open(gt_path) as fi, open(out_path, 'w') as fo:
     for l in fi:
         if l.startswith('##'):
             fo.write(l)
+            header+=1
         else:
             break
 
 
-target = pd.read_csv(gt_path, sep='\t', header=12).sort_values(by=['#CHROM'])
+target = pd.read_csv(gt_path, sep='\t', header=header).sort_values(by=['#CHROM'])
 samples = target.columns[-sample:]
 target['IlluminaName'] = target.apply(lambda x: x['INFO'].split(';')[0], axis=1)
 
