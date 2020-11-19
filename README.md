@@ -11,7 +11,7 @@ python ./scripts/2vcf.py -r ./data/ASA_CHIA_ANNO_FINAL_1125.txt -i ./data/genoty
 *notes:* 
 
 * ALT could be same as REF
-* locas could duplicate
+* locus could duplicate
 
 ### 2. quality control
 
@@ -123,7 +123,7 @@ Split the phased genotype file by chromosome with ```./scripts/merge_and_split.p
 python3 ./scripts/merge_and_split.py -op s -i ./data/genotype.phased.vcf.gz -o ./data/vcfs
 ```
 
-Download the [reference](http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/) and adjust the target genomic position consistent with the reference with [conform-gt](http://faculty.washington.edu/browning/conform-gt.html). The [population](http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/sample_info/integrated_call_samples_v3.20130502.ALL.panel) infomation of reference genotype is listed below:
+Download the [reference](http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/) and adjust the target genomic position consistent with the reference with [conform-gt](http://faculty.washington.edu/browning/conform-gt.html). The [population](http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/sample_info/integrated_call_samples_v3.20130502.ALL.panel) information of reference genotype is listed below:
 
 ```bash
 # Download sample information for 1000 Genomes Project and changed to b37.info
@@ -141,7 +141,7 @@ wget http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/b37
 |  European   |     EUR      |
 |  American   |     AMR      |
 
-select asian population
+select Asian population
 
 ```bash
 grep -E 'AFR|EUR|AMR' b37.info | cut -f1 > non.asian
@@ -154,7 +154,7 @@ conform-gt usage:
 ls /data/share/1KG/b37/b37.bref3 | cut -d '.' -f1 | while read line; do java -jar scripts/conform-gt.24May16.cee.jar ref=/data/share/1KG/b37/b37.vcf/chr${line:3}.1kg.phase3.v5a.b37.vcf.gz gt=./data/vcfs/chr${line:3}.vcf.gz chrom=${line:3} out=./data/vcfs/conform.chr${line:3} excludesamples=./data/vcfs/non.asian; done
 ```
 
-Conversion between vcf and bref3 can be achived with [bref3](http://faculty.washington.edu/browning/beagle/bref3.18May20.d20.jar) and [unbref3](http://faculty.washington.edu/browning/beagle/unbref3.18May20.d20.jar) as below:
+Conversion between vcf and bref3 can be achieved with [bref3](http://faculty.washington.edu/browning/beagle/bref3.18May20.d20.jar) and [unbref3](http://faculty.washington.edu/browning/beagle/unbref3.18May20.d20.jar) as below:
 
 ```bash
 ls * | cut -d '.' -f 1-5 | while read line; do java -jar ~/Imputation/scripts/unbref3.18May20.d20.jar $line.bref3 > ../b37.vcf/$line.vcf; done
@@ -178,7 +178,7 @@ python3 ./scripts/merge_and_split.py -op m -i ./data/imputed -o ./data/genotype.
 
 ##### Step1: Alignment of the SNPs
 
-Before VCF files can be used they need to be compressed using bgzip and indexed with a tabix. 
+Before VCF files can be used they need to be compressed using bgzip and indexed with tabix. 
 
 ```bash
 ## Installing tabix and bgzip
@@ -213,7 +213,7 @@ plink --bfile ../alignment/chr10.align --recode vcf-iid --out ./chr10.align
 shapeit --input-vcf chr10.align.vcf -M /data/share/1KG/1000GP_Phase3/genetic_map_chr10_combined_b37.txt  -O phased_chr10
 ```
 
-##### Step 4: Imputation into pre-phased haplotypes
+##### Step 3: Imputation into pre-phased haplotypes
 
 ```bash
 mkdir imputed2
@@ -237,15 +237,17 @@ cat chr10_1 chr10_2 chr10_3 chr10_4 chr10_5 chr10_6 > chr10.gen
 convert to vcf with [qctool](https://www.well.ox.ac.uk/~gav/qctool/index.html)
 
 ```bash
-qctool -g chr10.gen -og chr10.ip2.vcf ## impute with impute2
+## impute with impute2
+qctool -g chr10.gen -og chr10.ip2.vcf
 ```
 
-### 6. comparison between two method
+### 6. comparison between two methods
 
 To minimize the difference, using all ethnic as reference and  imputing with beagle on chr10.
 
 ```bash
-java -jar ./scripts/beagle.18May20.d20.jar ref=/data/share/1KG/b37/b37.bref3/chr10.1kg.phase3.v5a.b37.bref3 gt=./data/vcfs/conform.chr10.vcf.gz out=./data/imputed/chr10.bg ## impute with beagle
+## impute with beagle
+java -jar ./scripts/beagle.18May20.d20.jar ref=/data/share/1KG/b37/b37.bref3/chr10.1kg.phase3.v5a.b37.bref3 gt=./data/vcfs/conform.chr10.vcf.gz out=./data/imputed/chr10.bg
 ```
 
 ```bash
@@ -256,9 +258,31 @@ cp ../imputed2/chr10.ip2.vcf ./
 gzip chr10.ip2.vcf
 ```
 
+description:
 
+* in beagle imputation result, the in GT format agreeing with VCF4.2.
+* in impute2 output, the result is converted from [gen file](https://cran.r-project.org/web/packages/BinaryDosage/vignettes/usinggenfiles.html), the genotype is stored as the genotype probabilities
+  * The dosage value only
+  * Probability subject has no alternate alleles, probability subject has one alternate allele.
+  * Probability subject has no alternate alleles, probability subject has  one alternate allele, probability subject has two alternate allele.
 
+```bash
+# the file path has already been writen in script
+python3 ./scripts/beagle_vs_impute2.py 
+```
 
+|Sample|Similarity|
+|:--:|:--:|
+|CHIA-1|0.9915399505012471|
+|CHIA-2|0.989267245115128|
+|CHIA-3|0.9902976666249362|
+|CHIA-4|0.9924355505050991|
+|CHIA-5|0.9893298408143218|
+|CHIA-6|0.9884294257566857|
+|CHIA-7|0.9896765246867808|
+|CHIA-8|0.9933455956703037|
+|CHIA-9|0.9921514623318343|
+|CHIA-10|0.9870860257509076|
 
-
+**Notes:** To make reference data suit for beagle5, the author [removed](http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/1000G_READMEs/READ_ME_phase3_callset_20150220) some SNPs, which makes the amount of imputed SNPs different from the result of impute2. And with the limit of computer memory and the calculation time, impute2 only uses the interval **from 1 to 18000000** of chr10 which is also applied on beagle result when comparison.  The locus with genotype possibility lower than 0.8 in impute2 result are removed. Overall, in target interval, beagle result has **242481** locus, impute2 has **579438** locus (after filtering), they have **207682** locus in common.
 
