@@ -284,5 +284,77 @@ python3 ./scripts/beagle_vs_impute2.py
 |CHIA-9|0.9921514623318343|
 |CHIA-10|0.9870860257509076|
 
-**Notes:** To make reference data suit for beagle5, the author [removed](http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/1000G_READMEs/READ_ME_phase3_callset_20150220) some SNPs, which makes the amount of imputed SNPs different from the result of impute2. And with the limit of computer memory and the calculation time, impute2 only uses the interval **from 1 to 18000000** of chr10 which is also applied on beagle result when comparison.  The locus with genotype possibility lower than 0.8 in impute2 result are removed. Overall, in target interval, beagle result has **242481** locus, impute2 has **579438** locus (after filtering), they have **207682** locus in common.
+**Notes:** To make reference data suit for beagle5, the author [removed](http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/1000G_READMEs/READ_ME_phase3_callset_20150220) some SNPs, which makes the amount of imputed SNPs different from the result of impute2. And with the limit of computer memory and the considering of calculation time, impute2 only uses the interval **from 1 to 18000000** of chr10 which is also applied on beagle result when comparison.  The locus with genotype possibility lower than 0.8 in impute2 result are removed. Overall, in target interval, beagle result has **242481** locus, impute2 has **579438** locus (after filtering), they have **207682** locus in common.
+
+### 7. ChrX
+
+#### 7.1 exclude data
+
+```bash
+grep \# genotype.vcf > ChrX.vcf
+grep '^X' genotype.vcf >> ChrX.vcf
+mkdir ChrX
+cd ChrX
+mv ../ChrX.vcf ./
+```
+
+#### 7.2 QC
+
+```bash
+plink2 --vcf ChrX.vcf --vcf-half-call 'm' --make-bed --out ChrX
+plink --bfile ChrX --missing
+Rscript --no-save ../../scripts/hist_miss.R
+plink --bfile ChrX --geno 0.2 --make-bed --out ChrX_1
+plink --bfile ChrX_1 --recode vcf-iid --out ChrX_qc
+```
+
+#### 7.3 Alignment
+
+```bash
+gzip -d chrX.1kg.phase3.v5a.b37.vcf.gz
+bgzip -c chrX.1kg.phase3.v5a.b37.vcf > chrX.1kg.phase3.v5a.b37.vcf.gz
+tabix -p vcf chrX.1kg.phase3.v5a.b37.vcf.gz
+
+plink2 --vcf ChrX_qc.vcf -allow-extra-chr --vcf-half-call 'm' --make-bed --out ChrX
+
+java -Xmx40g -jar ~/tools/GenotypeHarmonizer-1.4.23/GenotypeHarmonizer.jar --inputType PLINK_BED --input ChrX --update-id --outputType PLINK_BED  --output ./chrX.align --refType VCF --ref /data/share/1KG/b37/b37.vcf/chrX.1kg.phase3.v5a.b37.vcf.gz
+```
+
+#### 7.4 phasing
+
+```bash
+plink --bfile ./chrX.align --recode vcf-iid --out ./chrX.align
+shapeit --input-vcf chrX.align.vcf -M /data/share/1KG/chrX/genetic_map_chrX_nonPAR_combined_b37.txt  -O phased_chrX
+```
+
+#### 7.5 impute
+
+add [gender information](https://mathgen.stats.ox.ac.uk/impute/impute_v2.html#ex3) to `.sample` file
+
+the reference range:
+
+PAR1: 1-2699507
+
+NONPAR: 2699520-154930725
+
+PAR2: 154933254-155260478
+
+```bash
+for i in {0..4}; do impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR1.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR1.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int $((i*500000+1)) $((i*500000+500000)) -Ne 20000  -o chrX_$((i+1)); done
+
+impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR1.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR1.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 2500000 2699507 -Ne 20000  -o chrX_6_1
+impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 2699520 300000 -Ne 20000  -o chrX_6_2
+
+for i in {6..308}; do impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int $((i*500000+1)) $((i*500000+500000)) -Ne 20000  -o chrX_$((i+1)); done
+
+impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 154500000 154930725 -Ne 20000  -o chrX_310_1
+impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR2.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR2.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 154933254 155000000 -Ne 20000  -o chrX_310_1
+impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR2.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR2.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 155000000 155260478 -Ne 20000  -o chrX_311
+
+touch chrX.gen
+for i in {1..5}; do cat chrX_$i >> v.gen; done
+qctool -g chrX.gen -og chrX.ipted.vcf
+```
+
+
 
