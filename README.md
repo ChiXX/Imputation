@@ -26,7 +26,7 @@ Firstly, convert vcf file to binary plink format
 plink2 --vcf ../genotype.vcf --allow-extra-chr --vcf-half-call 'm' --make-bed --out genotype
 ```
 
-The './0' is specified as an error in plink, using ```--vcf-half-call 'm'``` to treat halfs as missing.
+The './0' is specified as an error in plink, using `--vcf-half-call 'm'` to treat halfs as missing.
 
 some R [scripts](https://github.com/MareesAT/GWA_tutorial)
 
@@ -117,7 +117,7 @@ java -jar ./scripts/beagle.18May20.d20.jar gt=./data/genotype.qc.vcf out=./data/
 
 ### 4. preparing
 
-Split the phased genotype file by chromosome with ```./scripts/merge_and_split.py```
+Split the phased genotype file by chromosome with `./scripts/merge_and_split.py`
 
 ```bash
 python3 ./scripts/merge_and_split.py -op s -i ./data/genotype.phased.vcf.gz -o ./data/vcfs
@@ -180,17 +180,6 @@ python3 ./scripts/merge_and_split.py -op m -i ./data/imputed -o ./data/genotype.
 
 Before VCF files can be used they need to be compressed using bgzip and indexed with tabix. 
 
-```bash
-## Installing tabix and bgzip
-wget http://sourceforge.net/projects/samtools/files/tabix/tabix-0.2.6.tar.bz2
-tar -jxvf tabix-0.2.6.tar.bz2
-cd tabix-0.2.6/
-make
-## Preparing a VCF file
-bgzip -c chr10.1kg.phase3.v5a.b37.vcf > chr10.1kg.phase3.v5a.b37.vcf.gz
-tabix -p vcf chr10.1kg.phase3.v5a.b37.vcf.gz
-```
-
 [**Genotype Harmonizer**](https://github.com/molgenis/systemsgenetics/wiki/Genotype-Harmonizer) is an easy to use tool helping accomplish this job.
 
 ```bash
@@ -198,6 +187,7 @@ mkdir alignment
 cd alignment
 cp ../vcfs/chr10.vcf.gz
 gzip -d chr10.vcf.gz
+
 plink2 --vcf chr10.vcf -allow-extra-chr --vcf-half-call 'm' --make-bed --out chr10
 
 java -Xmx40g -jar ~/tools/GenotypeHarmonizer-1.4.23/GenotypeHarmonizer.jar --inputType PLINK_BED --input chr10 --update-id --outputType PLINK_BED  --output ./chr10.align --refType VCF --ref /data/share/1KG/b37/b37.vcf/chr10.1kg.phase3.v5a.b37.vcf.gz
@@ -304,8 +294,8 @@ mv ../ChrX.vcf ./
 plink2 --vcf ChrX.vcf --vcf-half-call 'm' --make-bed --out ChrX
 plink --bfile ChrX --missing
 Rscript --no-save ../../scripts/hist_miss.R
-plink --bfile ChrX --geno 0.2 --make-bed --out ChrX_1
-plink --bfile ChrX_1 --recode vcf-iid --out ChrX_qc
+plink --bfile ChrX --geno 0.2 --make-bed --out ChrX_qc
+plink --bfile ChrX_qc --recode vcf-iid --out ChrX_qc
 ```
 
 #### 7.3 Alignment
@@ -315,16 +305,19 @@ gzip -d chrX.1kg.phase3.v5a.b37.vcf.gz
 bgzip -c chrX.1kg.phase3.v5a.b37.vcf > chrX.1kg.phase3.v5a.b37.vcf.gz
 tabix -p vcf chrX.1kg.phase3.v5a.b37.vcf.gz
 
-plink2 --vcf ChrX_qc.vcf -allow-extra-chr --vcf-half-call 'm' --make-bed --out ChrX
+#If using binary plink file directly, it will have something wrong in format(zero of variants???). So reconvert it from vcf file.
+plink2 --vcf ChrX_qc.vcf -allow-extra-chr --vcf-half-call 'm' --make-bed --out ChrX_qc
 
-java -Xmx40g -jar ~/tools/GenotypeHarmonizer-1.4.23/GenotypeHarmonizer.jar --inputType PLINK_BED --input ChrX --update-id --outputType PLINK_BED  --output ./chrX.align --refType VCF --ref /data/share/1KG/b37/b37.vcf/chrX.1kg.phase3.v5a.b37.vcf.gz
+java -Xmx40g -jar ~/tools/GenotypeHarmonizer-1.4.23/GenotypeHarmonizer.jar --inputType PLINK_BED --input ChrX_qc --update-id --outputType PLINK_BED  --output ChrX_align --refType VCF --ref ~/tools/Beagle5.1/database/chrX.1kg.phase3.v5a.b37.vcf.gz
 ```
 
 #### 7.4 phasing
 
 ```bash
-plink --bfile ./chrX.align --recode vcf-iid --out ./chrX.align
-shapeit --input-vcf chrX.align.vcf -M /data/share/1KG/chrX/genetic_map_chrX_nonPAR_combined_b37.txt  -O phased_chrX
+plink --bfile ChrX_align --recode vcf-iid --out ChrX_align
+
+# rates of missing data (>10%) and disable this error with --force
+shapeit --input-vcf ChrX_align.vcf -M ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_nonPAR_combined_b37.txt  -O ChrX_phased --force 
 ```
 
 #### 7.5 impute
@@ -340,21 +333,18 @@ NONPAR: 2699520-154930725
 PAR2: 154933254-155260478
 
 ```bash
-for i in {0..4}; do impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR1.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR1.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int $((i*500000+1)) $((i*500000+500000)) -Ne 20000  -o chrX_$((i+1)); done
+impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR1.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR1.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 1 2699507 -Ne 20000  -o ChrX_1
 
-impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR1.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR1.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 2500000 2699507 -Ne 20000  -o chrX_6_1
-impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 2699520 300000 -Ne 20000  -o chrX_6_2
+nohup impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_nonPAR_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 2699520 12699520 -Ne 20000 -allow_large_regions -o ChrX_2_1 &
+...
+nohup impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_nonPAR_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 142699520 154930725 -Ne 20000 -allow_large_regions -o ChrX_2_15 &
 
-for i in {6..308}; do impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int $((i*500000+1)) $((i*500000+500000)) -Ne 20000  -o chrX_$((i+1)); done
+impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_PAR2_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR2.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR2.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 154933254 155260478 -Ne 20000 -allow_large_regions -o ChrX_3
 
-impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 154500000 154930725 -Ne 20000  -o chrX_310_1
-impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR2.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR2.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 154933254 155000000 -Ne 20000  -o chrX_310_1
-impute2 -chrX -m /data/share/1KG/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR2.hap.gz -l /data/share/1KG/chrX/1000GP_Phase3_chrX_PAR2.legend.gz -known_haps_g ./phased_chrX.haps -sample_g ./phased_chrX.sample -int 155000000 155260478 -Ne 20000  -o chrX_311
 
-touch chrX.gen
-for i in {1..5}; do cat chrX_$i >> v.gen; done
-qctool -g chrX.gen -og chrX.ipted.vcf
+touch chrX_2
+for i in {1..15}; do cat ChrX_2_$i >> ChrX_2; done
+cat ChrX_1 ChrX_2 ChrX_3 > ChrX_ipt.gen
+python3 ../../scripts/gen2vcf.py -i ChrX_ipt.gen -s ChrX_phased.sample -o ChrX_ipt.vcf
 ```
-
-
 
