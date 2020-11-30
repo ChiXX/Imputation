@@ -1,5 +1,11 @@
 ## Imputation
 
+In the computing sever
+
+```bash
+sbatch test.sh
+```
+
 ### 1. vcf file converting
 
 Genetype file should in [vcf](http://samtools.github.io/hts-specs/VCFv4.2.pdf) format, using ```./scripts/2vcf.py```to make this.
@@ -257,7 +263,7 @@ description:
   * Probability subject has no alternate alleles, probability subject has  one alternate allele, probability subject has two alternate allele.
 
 ```bash
-# the file path has already been writen in script
+# the file path has already been writen into script
 python3 ./scripts/beagle_vs_impute2.py 
 ```
 
@@ -345,6 +351,7 @@ impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_c
 touch chrX_2
 for i in {1..15}; do cat ChrX_2_$i >> ChrX_2; done
 cat ChrX_1 ChrX_2 ChrX_3 > ChrX_ipt.gen
+# some libraries in centos don't match the requirements of qctool, so I writen one...
 python3 ../../scripts/gen2vcf.py -i ChrX_ipt.gen -s ChrX_phased.sample -o ChrX_ipt.vcf
 ```
 
