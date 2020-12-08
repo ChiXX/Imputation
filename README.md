@@ -1,14 +1,20 @@
 ## Imputation
 
-In the computing sever
+In the computing sever:
 
 ```bash
-sbatch test.sh
+sbatch run.sh
 ```
 
 ### 1. vcf file converting
 
-Genetype file should in [vcf](http://samtools.github.io/hts-specs/VCFv4.2.pdf) format, using ```./scripts/2vcf.py```to make this.
+My file looks like this:
+
+|#CHROM|POS|ID|REF|INFO|CHIA-3|CHIA-4|......|
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | :--: |
+|1|156084877|.|C|1:156084877;FWD|CC|CC|.....|
+|1|156105743|rs1060502211|G|1:156105743;FWD|GG|GG|.....|
+Which lack the **ALT** column. Genotype file should in [vcf](http://samtools.github.io/hts-specs/VCFv4.2.pdf) format, using ```./scripts/2vcf.py```to make this. 
 
 ```bash
 python ./scripts/2vcf.py -r ./data/ASA_CHIA_ANNO_FINAL_1125.txt -i ./data/genotype.txt -o ./data/genotype.vcf -n 10
@@ -36,23 +42,18 @@ The './0' is specified as an error in plink, using `--vcf-half-call 'm'` to trea
 
 some R [scripts](https://github.com/MareesAT/GWA_tutorial)
 
+Prior-QC is necessary for the next step has limitation on data quality.
+
 #### 2.1 missingness 
 
-plot histogram of missing rate with:
-
 ```bash
+# plot histogram of missing rate
 mkdir miss
 cd miss
 plink --bfile ../genotype --missing
 Rscript --no-save ../../../scripts/hist_miss.R
-```
 
-![](./data/QC/miss/histlmiss.png)
-
-![](./data/QC/miss/histimiss.png)
-
-```bash
-# Delete SNPs with missingness >0.2
+# Delete SNPs with missingness > 0.2
 plink --bfile ../genotype --geno 0.2 --make-bed --out genotype_1
 ```
 
@@ -73,8 +74,6 @@ check MAF distribution
 plink --bfile genotype_2 --freq --out MAF_check
 Rscript --no-save ../../../scripts/MAF_check.R
 ```
-
-![](./data/QC/maf/MAF_distribution.png)
 
 flitering
 
@@ -99,10 +98,6 @@ awk '{ if ($9 <0.01) print $0 }' plink.hwe>plinkzoomhwe.hwe
 Rscript --no-save ../../../scripts/hwe.R 
 ```
 
-![](./data/QC/hwe/histhwe.png)
-
-![](./data/QC/hwe/histhwe_below_theshold.png)
-
 ```bash
 plink --bfile ../maf/genotype_3 --hwe 0.005 --make-bed --out genotype_4
 ```
@@ -113,15 +108,19 @@ convert to vcf format
 plink --bfile genotype_4 --recode vcf-iid --out ../../genotype.qc
 ```
 
-### 3. phasing
+### 3. Imputation
 
-using beagle
+Carry out 2 types of imputation. Step by step workflow is shown below.
+
+#### 3.1 Impute with Beagle5.1
+
+##### Step 1: Phasing
 
 ```bash
 java -jar ./scripts/beagle.18May20.d20.jar gt=./data/genotype.qc.vcf out=./data/genotype.phased
 ```
 
-### 4. preparing
+##### Step 2: Consistency
 
 Split the phased genotype file by chromosome with `./scripts/merge_and_split.py`
 
@@ -160,15 +159,13 @@ conform-gt usage:
 ls /data/share/1KG/b37/b37.bref3 | cut -d '.' -f1 | while read line; do java -jar scripts/conform-gt.24May16.cee.jar ref=/data/share/1KG/b37/b37.vcf/chr${line:3}.1kg.phase3.v5a.b37.vcf.gz gt=./data/vcfs/chr${line:3}.vcf.gz chrom=${line:3} out=./data/vcfs/conform.chr${line:3} excludesamples=./data/vcfs/non.asian; done
 ```
 
-Conversion between vcf and bref3 can be achieved with [bref3](http://faculty.washington.edu/browning/beagle/bref3.18May20.d20.jar) and [unbref3](http://faculty.washington.edu/browning/beagle/unbref3.18May20.d20.jar) as below:
+*Hint*: Conversion between vcf and bref3 can be achieved with [bref3](http://faculty.washington.edu/browning/beagle/bref3.18May20.d20.jar) and [unbref3](http://faculty.washington.edu/browning/beagle/unbref3.18May20.d20.jar) as below:
 
 ```bash
 ls * | cut -d '.' -f 1-5 | while read line; do java -jar ~/Imputation/scripts/unbref3.18May20.d20.jar $line.bref3 > ../b37.vcf/$line.vcf; done
 ```
 
-### 5. Imputation 
-
-#### 5.1 Impute with Beagle5.1
+##### Step 3: Imputation 
 
 ```bash
 ls ./data/vcfs/conform.* | cut -d '.' -f3 | uniq | while read line; do java -jar ./scripts/beagle.18May20.d20.jar ref=/data/share/1KG/b37/b37.bref3/$line.1kg.phase3.v5a.b37.bref3 gt=./data/vcfs/conform.$line.vcf.gz out=./data/imputed/$line; done
@@ -180,9 +177,9 @@ Merge file
 python3 ./scripts/merge_and_split.py -op m -i ./data/imputed -o ./data/genotype.imputed
 ```
 
-#### 5.2 Impute with IMPUTE2
+#### 3.2 Impute with IMPUTE2
 
-##### Step1: Alignment of the SNPs
+##### Step1: Alignment
 
 Before VCF files can be used they need to be compressed using bgzip and indexed with tabix. 
 
@@ -209,7 +206,7 @@ plink --bfile ../alignment/chr10.align --recode vcf-iid --out ./chr10.align
 shapeit --input-vcf chr10.align.vcf -M /data/share/1KG/1000GP_Phase3/genetic_map_chr10_combined_b37.txt  -O phased_chr10
 ```
 
-##### Step 3: Imputation into pre-phased haplotypes
+##### Step 3: Imputation
 
 ```bash
 mkdir imputed2
@@ -219,15 +216,7 @@ impute2 -use_prephased_g -Ne 20000 -iter 30 -align_by_maf_g -os 0 1 2 3 -int 1 3
 
 impute2 -use_prephased_g -Ne 20000 -iter 30 -align_by_maf_g -os 0 1 2 3 -int 3000000 6000000 -h /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.hap -l /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.legend -m /data/share/1KG/1000GP_Phase3/genetic_map_chr10_combined_b37.txt -known_haps_g ../pre_phase/phased_chr10.haps -o ./chr10_2
 
-impute2 -use_prephased_g -Ne 20000 -iter 30 -align_by_maf_g -os 0 1 2 3 -int 6000000 9000000 -h /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.hap -l /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.legend -m /data/share/1KG/1000GP_Phase3/genetic_map_chr10_combined_b37.txt -known_haps_g ../pre_phase/phased_chr10.haps -o ./chr10_3
-
-impute2 -use_prephased_g -Ne 20000 -iter 30 -align_by_maf_g -os 0 1 2 3 -int 9000000 12000000 -h /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.hap -l /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.legend -m /data/share/1KG/1000GP_Phase3/genetic_map_chr10_combined_b37.txt -known_haps_g ../pre_phase/phased_chr10.haps -o ./chr10_4
-
-impute2 -use_prephased_g -Ne 20000 -iter 30 -align_by_maf_g -os 0 1 2 3 -int 12000000 15000000 -h /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.hap -l /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.legend -m /data/share/1KG/1000GP_Phase3/genetic_map_chr10_combined_b37.txt -known_haps_g ../pre_phase/phased_chr10.haps -o ./chr10_5
-
-impute2 -use_prephased_g -Ne 20000 -iter 30 -align_by_maf_g -os 0 1 2 3 -int 15000000 18000000 -h /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.hap -l /data/share/1KG/1000GP_Phase3/1000GP_Phase3_chr10.legend -m /data/share/1KG/1000GP_Phase3/genetic_map_chr10_combined_b37.txt -known_haps_g ../pre_phase/phased_chr10.haps -o ./chr10_6
-
-cat chr10_1 chr10_2 chr10_3 chr10_4 chr10_5 chr10_6 > chr10.gen
+cat chr10_1 chr10_2 > chr10.gen
 ```
 
 convert to vcf with [qctool](https://www.well.ox.ac.uk/~gav/qctool/index.html)
@@ -237,7 +226,28 @@ convert to vcf with [qctool](https://www.well.ox.ac.uk/~gav/qctool/index.html)
 qctool -g chr10.gen -og chr10.ip2.vcf
 ```
 
-### 6. comparison between two methods
+##### Step 4: ChrX
+
+The only difference in carrying out imputation between x chromosome and autosome is gender information should be added to `.sample` file, and `-chrx` and `-sample_g` flag should be specified.
+
+```bash
+impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR1.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR1.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 1 2699507 -Ne 20000  -o ChrX_1
+
+nohup impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_nonPAR_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 2699520 12699520 -Ne 20000 -allow_large_regions -o ChrX_2_1 &
+...
+nohup impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_nonPAR_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 142699520 154930725 -Ne 20000 -allow_large_regions -o ChrX_2_15 &
+
+impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_PAR2_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR2.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR2.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 154933254 155260478 -Ne 20000 -allow_large_regions -o ChrX_3
+
+
+touch chrX_2
+for i in {1..15}; do cat ChrX_2_$i >> ChrX_2; done
+cat ChrX_1 ChrX_2 ChrX_3 > ChrX_ipt.gen
+# some libraries in centos don't match the requirements of qctool, so I writen one...
+python3 ../../scripts/gen2vcf.py -i ChrX_ipt.gen -s ChrX_phased.sample -o ChrX_ipt.vcf
+```
+
+#### 3.3 comparison between two methods
 
 To minimize the difference, using all ethnic as reference and  imputing with beagle on chr10.
 
@@ -282,76 +292,41 @@ python3 ./scripts/beagle_vs_impute2.py
 
 **Notes:** To make reference data suit for beagle5, the author [removed](http://bochet.gcc.biostat.washington.edu/beagle/1000_Genomes_phase3_v5a/1000G_READMEs/READ_ME_phase3_callset_20150220) some SNPs, which makes the amount of imputed SNPs different from the result of impute2. And with the limit of computer memory and the considering of calculation time, impute2 only uses the interval **from 1 to 18000000** of chr10 which is also applied on beagle result when comparison.  The locus with genotype possibility lower than 0.8 in impute2 result are removed. Overall, in target interval, beagle result has **242481** locus, impute2 has **579438** locus (after filtering), they have **207682** locus in common.
 
-### 7. ChrX
+### 4. Wrapper
 
-#### 7.1 exclude data
+On [supercomputing machine](https://www.hpccube.com/ac/console/space/dashboard.jsp?reminder=1), wrapping all steps into one script, `run.sh`. This scripts is based on impute2, just run `sbatch` to submit the mission.
 
 ```bash
-grep \# genotype.vcf > ChrX.vcf
-grep '^X' genotype.vcf >> ChrX.vcf
-mkdir ChrX
-cd ChrX
-mv ../ChrX.vcf ./
+sbatch run.sh
 ```
 
-#### 7.2 QC
+## Association analysis
+
+There are 22 samples in example data set. Firstly merge them into one VCF file, then split them by chromosome.
 
 ```bash
-plink2 --vcf ChrX.vcf --vcf-half-call 'm' --make-bed --out ChrX
-plink --bfile ChrX --missing
-Rscript --no-save ../../scripts/hist_miss.R
-plink --bfile ChrX --geno 0.2 --make-bed --out ChrX_qc
-plink --bfile ChrX_qc --recode vcf-iid --out ChrX_qc
+gatk --java-options "-Xmx4g" GenotypeGVCFs -V input.g.vcf.gz -O output.vcf.gz
+ls * | while read l; do bcftools index -t $l; done
+bcftools merge *.vcf.gz -Oz -o Sample.vcf.gz
+bcftools index -t Sample.vcf.gz
+for i in {1..12}; do bcftools view -r $i Sample.vcf.gz -Oz -o Chr$i.vcf.gz; done
+
+plink --vcf Sample.vcf.gz --geno 0.1 --maf 0.05  --hwe 0.001 --make-bed --recode vcf-iid --out Sample_qc
+srun -p normal java -jar ~/tools/Beagle5.1/bin/beagle.18May20.d20.jar gt=./Sample_qc.vcf out=./Sample_qc_phased
+for i in {1..12}; do bcftools view -r $i Sample_qc_phased.vcf.gz -Oz -o chr$i_qc_phased.vcf.gz; done
 ```
 
-#### 7.3 Alignment
+using [example](http://zzz.bwh.harvard.edu/plink/dist/example.zip) :
 
 ```bash
-gzip -d chrX.1kg.phase3.v5a.b37.vcf.gz
-bgzip -c chrX.1kg.phase3.v5a.b37.vcf > chrX.1kg.phase3.v5a.b37.vcf.gz
-tabix -p vcf chrX.1kg.phase3.v5a.b37.vcf.gz
+plink --file wgas1 --make-bed --out wgas1 # generate binary plink file
+plink --bfile wgas1 --recode vcf-iid --out wgas1 # generate VCF file
+# QC: using default threshold
+plink --bfile wgas1  --geno 0.1 --maf 0.05  --hwe 0.001 --make-bed --out wgas1_qc
+# PCA
+plink --bfile wgas1_qc --pca 10 --out wgas1_pca
+# AS
+plink --bfile wgas1 --assoc --out as1
 
-#If using binary plink file directly, it will have something wrong in format(zero of variants???). So reconvert it from vcf file.
-plink2 --vcf ChrX_qc.vcf -allow-extra-chr --vcf-half-call 'm' --make-bed --out ChrX_qc
-
-java -Xmx40g -jar ~/tools/GenotypeHarmonizer-1.4.23/GenotypeHarmonizer.jar --inputType PLINK_BED --input ChrX_qc --update-id --outputType PLINK_BED  --output ChrX_align --refType VCF --ref ~/tools/Beagle5.1/database/chrX.1kg.phase3.v5a.b37.vcf.gz
-```
-
-#### 7.4 phasing
-
-```bash
-plink --bfile ChrX_align --recode vcf-iid --out ChrX_align
-
-# rates of missing data (>10%) and disable this error with --force
-shapeit --input-vcf ChrX_align.vcf -M ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_nonPAR_combined_b37.txt  -O ChrX_phased --force 
-```
-
-#### 7.5 impute
-
-add [gender information](https://mathgen.stats.ox.ac.uk/impute/impute_v2.html#ex3) to `.sample` file
-
-the reference range:
-
-PAR1: 1-2699507
-
-NONPAR: 2699520-154930725
-
-PAR2: 154933254-155260478
-
-```bash
-impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_PAR1_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR1.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR1.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 1 2699507 -Ne 20000  -o ChrX_1
-
-nohup impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_nonPAR_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 2699520 12699520 -Ne 20000 -allow_large_regions -o ChrX_2_1 &
-...
-nohup impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_nonPAR_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_NONPAR.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 142699520 154930725 -Ne 20000 -allow_large_regions -o ChrX_2_15 &
-
-impute2 -chrX -m ~/tools/impute_v2.3.2_x86_64_static/database/chrX/genetic_map_chrX_PAR2_combined_b37.txt -h ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR2.hap.gz -l ~/tools/impute_v2.3.2_x86_64_static/database/chrX/1000GP_Phase3_chrX_PAR2.legend.gz -known_haps_g ChrX_phased.haps -sample_g ChrX_phased.sample -int 154933254 155260478 -Ne 20000 -allow_large_regions -o ChrX_3
-
-
-touch chrX_2
-for i in {1..15}; do cat ChrX_2_$i >> ChrX_2; done
-cat ChrX_1 ChrX_2 ChrX_3 > ChrX_ipt.gen
-# some libraries in centos don't match the requirements of qctool, so I writen one...
-python3 ../../scripts/gen2vcf.py -i ChrX_ipt.gen -s ChrX_phased.sample -o ChrX_ipt.vcf
 ```
 
