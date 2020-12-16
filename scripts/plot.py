@@ -66,12 +66,12 @@ if args.mht != None:
     data['$-log_{10}(p)$'] = -np.log10(data['p'])
     data['ind'] = range(len(data))
     manhattan(data, args.mht)
-elif args.qq != None:
+if args.qq != None:
     data = pd.read_csv(args.mht, sep='\t')['p'].dropna()
     qqplot(data,args.qq)
-elif args.pca != None:
+if args.pca != None:
     data1 = pd.read_csv(args.pca[0], sep='\t', header=2)
     data2 = list(pd.read_csv(args.pca[1], sep='\t')['proportion of total'])
     pcaplot(data1, data2, args.pca[0])
-else:
-    print('please your figure type selection, use -h for more information')
+if len(args) == 0:
+    print('Use -h for more information')
