@@ -33,7 +33,7 @@ def manhattan(data, file):
 
 def qqplot(data, file):
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize = (12,12))
-    expected, observed = stats.probplot(data['p'], dist='norm', plot=plt)
+    stats.probplot(data['p'], dist='norm', plot=plt)
     ax.set_xlabel("Expected $-log_{10}(p)$")
     ax.set_ylabel("Observed $-log_{10}(p)$")
     ax.set_title('Q-Q plot')
@@ -67,11 +67,11 @@ if args.mht != None:
     data['ind'] = range(len(data))
     manhattan(data, args.mht)
 if args.qq != None:
-    data = pd.read_csv(args.mht, sep='\t')['p'].dropna()
+    data = pd.read_csv(args.qq, sep='\t')[['Chr', 'Pos', 'p']].dropna()
     qqplot(data,args.qq)
 if args.pca != None:
     data1 = pd.read_csv(args.pca[0], sep='\t', header=2)
     data2 = list(pd.read_csv(args.pca[1], sep='\t')['proportion of total'])
     pcaplot(data1, data2, args.pca[0])
-if len(args) == 0:
+if args == None:
     print('Use -h for more information')
