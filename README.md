@@ -14,6 +14,8 @@ My file looks like this:
 | ---- | ---- | ---- | ---- | ---- | ---- | ---- | :--: |
 |1|156084877|.|C|1:156084877;FWD|CC|CC|.....|
 |1|156105743|rs1060502211|G|1:156105743;FWD|GG|GG|.....|
+
+
 Which lack the **ALT** column. Genotype file should in [vcf](http://samtools.github.io/hts-specs/VCFv4.2.pdf) format, using ```./scripts/2vcf.py```to make this. 
 
 ```bash
@@ -305,28 +307,60 @@ sbatch run.sh
 There are 22 samples in example data set. Firstly merge them into one VCF file, then split them by chromosome.
 
 ```bash
-gatk --java-options "-Xmx4g" GenotypeGVCFs -V input.g.vcf.gz -O output.vcf.gz
-ls * | while read l; do bcftools index -t $l; done
-bcftools merge *.vcf.gz -Oz -o Sample.vcf.gz
-bcftools index -t Sample.vcf.gz
-for i in {1..12}; do bcftools view -r $i Sample.vcf.gz -Oz -o Chr$i.vcf.gz; done
+srun tabix -p vcf Sample1.g.vcf.gz
+srun java -Xmx30G -Djava.io.tmpdir=/public/home/cdjykj/gwas_test/java_tmp -jar /public/home/cdjykj/tools/GenomeAnalysisTK-3.8-0-ge9d806836/GenomeAnalysisTK.jar -T GenotypeGVCFs -allSites -stand_call_conf 30 -R genome.fa --variant Sample33.g.vcf.gz -o Sample33.vcf.gz
 
-plink --vcf Sample.vcf.gz --geno 0.1 --maf 0.05  --hwe 0.001 --make-bed --recode vcf-iid --out Sample_qc
+# Incorrect number of FORMAT/AD values at 1:1, cannot merge. The tag is defined as Number=R, but found 2 values and 1 alleles.
+# because some $PATH problem, bcftools is changed to bcf (version 1.9)
+srun bcf annotate -x FORMAT/AD Sample11.vcf.gz -Oz -o Sample11.vcf.gz
+srun -p normal ls *vcf.gz | while read line; do bcf index -t $line; done
+srun -p normal bcf merge *vcf.gz -Oz -o Sample.vcf.gz
+srun -p normal bcf index -t Sample.vcf.gz
+for i in {1..12}; do bcf view -r $i Sample.vcf.gz -Oz -o Chr$i.vcf.gz; done
+srun -p normal bcf index -t chr$i.vcf.gz
+
+srun -p normal plink --vcf Sample.vcf.gz --geno 0.1 --maf 0.05  --hwe 0.001 --make-bed --recode vcf-iid --out Sample_qc
+for i in {1..12}; do bcf view -r $i Sample_qc_phased.vcf.gz -Oz -o chr$i_qc_phased.vcf.gz; done
+
+
+### test
+# remove '*' marker in REF column of Sample_qc.vcf.gz and name the file as test.vcf.gz
+srun -p normal java -jar ~/tools/Beagle5.1/bin/beagle.18May20.d20.jar gt=./test.vcf.gz out=./test_phased
+srun -p normal -N 1 -n 32 bcf index -t test_phased.vcf.gz
+srun -p normal -N 1 -n 32 bcf view -r 1 test_phased.vcf.gz -Oz -o test_phased_chr1.vcf.gz
+# consistance step was canceled because all SNPs are removed for they are absence in the reference. Imputation on un consistanced data directly.
+# srun -p normal -N 1 -n 32 java -jar /public/home/cdjykj/impute_test/scripts/conform-gt.24May16.cee.jar ref=/public/home/cdjykj/tools/Beagle5.1/database/chr1.1kg.phase3.v5a.b37.vcf.gz gt=test_phased_chr1.vcf.gz chrom=1 out=test_conformed_chr1
+# Reference and target files have no markers in common in interval: 1:72009914-112010151
+# srun -p normal -n 32 java -jar /public/home/cdjykj/impute_test/scripts/beagle.18May20.d20.jar ref=/public/home/cdjykj/tools/Beagle5.1/database/chr1.1kg.phase3.v5a.b37.bref3 gt=test_conformed_chr1.vcf.gz out=test_imputed_chr1
+# try to do gwas
+srun -n 32 plink2 --vcf test_phased.vcf.gz --allow-extra-chr --vcf-half-call 'm' --make-bed --out test
+# make ped and map
+vcftools --gzvcf test_phased.vcf.gz --plink --out vto
+plink --file vto --make-bed --out vto
+###
+
+
 srun -p normal java -jar ~/tools/Beagle5.1/bin/beagle.18May20.d20.jar gt=./Sample_qc.vcf out=./Sample_qc_phased
-for i in {1..12}; do bcftools view -r $i Sample_qc_phased.vcf.gz -Oz -o chr$i_qc_phased.vcf.gz; done
 ```
 
-using [example](http://zzz.bwh.harvard.edu/plink/dist/example.zip) :
+[tassel5](https://bitbucket.org/tasseladmin/tassel-5-source/wiki/UserManual) 
 
 ```bash
-plink --file wgas1 --make-bed --out wgas1 # generate binary plink file
-plink --bfile wgas1 --recode vcf-iid --out wgas1 # generate VCF file
-# QC: using default threshold
-plink --bfile wgas1  --geno 0.1 --maf 0.05  --hwe 0.001 --make-bed --out wgas1_qc
+# sorting the vcf file
+run_pipeline.pl -SortGenotypeFilePlugin -inputFile test2.vcf -outputFile test2 -fileType VCF
+# vcf->hapmap
+run_pipeline.pl -fork1 -vcf test2.vcf  -export test2 -exportType Hapmap -runfork1
+# kinship
+run_pipeline.pl -importGuess test2.hmp.txt -KinshipPlugin -method Centered_IBS -endPlugin -export test2_kinship.txt -exportType SqrMatrix
 # PCA
-plink --bfile wgas1_qc --pca 10 --out wgas1_pca
-# AS
-plink --bfile wgas1 --assoc --out as1
-
+run_pipeline.pl -fork1 -h test2.hmp.txt -PrincipalComponentsPlugin -covariance true -endPlugin -export test2_pca -runfork1
+# MLM
+run_pipeline.pl -fork1 -h test2.hmp.txt -FilterSiteBuilderPlugin -siteMinAlleleFreq 0.05 -endPlugin -fork2 -t traits.txt -fork3 -k test2_kinship.txt -combine4 -input1 -input2 -intersect -combine5 -input3 -input4 -mlm -mlmVarCompEst P3D -mlmCompressionLevel Optimum -export test2_mlm -exportType Table
+#GLM
+run_pipeline.pl -fork1 -h test2.hmp.txt -FilterSiteBuilderPlugin -siteMinAlleleFreq 0.05 -endPlugin -fork2 -t traits.txt -combine5 -input1 -input2 -intersect -FixedEffectLMPlugin -endPlugin -export test2_glm -exportType Table
+# plot
+python3 plot.py -mht test2_glm1.txt
+python3 plot.py -qq test2_glm1.txt
+python3 plot.py -pca test2_pca1.txt test2_pca2.txt
 ```
 
