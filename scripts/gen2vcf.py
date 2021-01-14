@@ -24,4 +24,4 @@ with open(ipt) as fi, open(opt, 'w') as fo:
     for l in fi:
         info1 = l.rstrip().split(' ')
         info2 = [info1[1].split(':')[0], info1[2], '.', info1[3], info1[4], '.', '.', '.', 'GP'] + [','.join(info1[i:i+3]) for i in range(5, len(IDs)-9, 3)]
-        fo.write('\t'.join(info2)+'\n')    
+        fo.write('\t'.join(info2)+'\n')

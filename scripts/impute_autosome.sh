@@ -44,7 +44,8 @@ echo 'imputation done'
 echo '##########'
 
 for ((i=0; i<=loop; i++)); do cat Chr_$((i+1)) >> Chr_ipt.gen; done
-srun python3 /public/home/cdjykj/impute_test/scripts/gen2vcf.py -i Chr_ipt.gen -s Chr_phased.sample -o ../imputed/Chr$1_ipt.vcf
+# srun python3 /public/home/cdjykj/impute_test/scripts/gen2vcf.py -i Chr_ipt.gen -s Chr_phased.sample -o ../imputed/Chr$1_ipt.vcf
+cp Chr_ipt.gen ../imputed/Chr$1_ipt.gen
 echo '##########'
 echo 'the output is Chr$1_ipt.vcf'
 echo '##########'

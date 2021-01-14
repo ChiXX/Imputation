@@ -54,7 +54,8 @@ echo '##########'
 
 for i in {1..15}; do cat Chr_2_$i >> Chr_2; done
 srun cat Chr_1 Chr_2 Chr_3 > Chr_ipt.gen
-srun python3 /public/home/cdjykj/impute_test/scripts/gen2vcf.py -i Chr_ipt.gen -s Chr_phased.sample -o ../imputed/Chr$1_ipt.vcf
+# srun python3 /public/home/cdjykj/impute_test/scripts/gen2vcf.py -i Chr_ipt.gen -s Chr_phased.sample -o ../imputed/Chr$1_ipt.vcf
+cp Chr_ipt.gen ../imputed/Chr$1_ipt.gen
 echo '##########'
 echo 'the output is Chr_ipt$1.vcf'
 echo '#########'
