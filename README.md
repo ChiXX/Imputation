@@ -1,10 +1,30 @@
 ## Imputation
 
-In the computing sever:
+### Quick start
+
+Everything has been set properly in the environment, the local server in the company that I used.
+
+If you want to move the this repo to you computer, you should make sure:
+
+* plink2, plink, impute2, shapeit, python3 are installed.
+* reference data is downloaded
+
+And then, you need to edit the path in the `./scrpits/impute_autosome.sh` and ``./scrpits/impute_chrX.sh`` accordingly. The file should be in vcf format and named as `genotype.vcf`. And a description file named `sample_status.csv` should be in this format:
+
+| Sample ID | Call Rate | Gender | Sample Name |
+| :-------: | :-------: | :----: | :---------: |
+| Optional  | Optional  | Female |   CHIA-3    |
+| Optional  | Optional  |  Male  |   CHIA-1    |
+
+The sample name should be same as the sample name in vcf file. Put the cvs and vcf file in the data file.
+
+After that just run:
 
 ```bash
-sbatch run.sh
+nohup bash run.sh &
 ```
+
+When this script is finished, you can find the results in `./data/inputed`.
 
 ### 1. vcf file converting
 
@@ -221,7 +241,7 @@ impute2 -use_prephased_g -Ne 20000 -iter 30 -align_by_maf_g -os 0 1 2 3 -int 300
 cat chr10_1 chr10_2 > chr10.gen
 ```
 
-convert to vcf with [qctool](https://www.well.ox.ac.uk/~gav/qctool/index.html)
+convert to vcf with [qctool](https://www.well.ox.ac.uk/~gav/qctool/index.html): optional
 
 ```bash
 ## impute with impute2
