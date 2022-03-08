@@ -4,12 +4,12 @@
 
 Everything has been set properly in the environment, the local server in the company that I used.
 
-If you want to move the this repo to you computer, you should make sure:
+If you want to clone the this repo to local computer, please make sure:
 
 * plink2, plink, impute2, shapeit, python3 are installed.
 * reference data is downloaded
 
-And then, you need to edit the path in the `./scrpits/impute_autosome.sh` and ``./scrpits/impute_chrX.sh`` accordingly. The file should be in vcf format and named as `genotype.vcf`. And a description file named `sample_status.csv` should be in this format:
+And then, edit the path in the `./scrpits/impute_autosome.sh` and ``./scrpits/impute_chrX.sh`` accordingly. The file should be in vcf format and named as `genotype.vcf`. And a description file named `sample_status.csv` should be in this format:
 
 | Sample ID | Call Rate | Gender | Sample Name |
 | :-------: | :-------: | :----: | :---------: |
@@ -18,17 +18,17 @@ And then, you need to edit the path in the `./scrpits/impute_autosome.sh` and ``
 
 The sample name should be same as the sample name in vcf file. Put the cvs and vcf file in the data file.
 
-After that just run:
+After that:
 
 ```bash
 nohup bash run.sh &
 ```
 
-When this script is finished, you can find the results in `./data/inputed`.
+When this script is finished, the results would be generated in `./data/inputed`.
 
 ### 1. vcf file converting
 
-My file looks like this:
+The example file looks like this:
 
 |#CHROM|POS|ID|REF|INFO|CHIA-3|CHIA-4|......|
 | ---- | ---- | ---- | ---- | ---- | ---- | ---- | :--: |
